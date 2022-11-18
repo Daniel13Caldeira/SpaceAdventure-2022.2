@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Space Adventure - Daniel Caldeira</title>
+</head>
+
+<body>
+  <!--This draws the canvas on the webpage -->
+  <canvas id="mycanvas"></canvas>
+</body>
+<!-- Include the processing.js library -->
+<!-- See https://khanacademy.zendesk.com/hc/en-us/articles/202260404-What-parts-of-ProcessingJS-does-Khan-Academy-support- for differences -->
+<script src="https://cdn.jsdelivr.net/processing.js/1.4.8/processing.min.js"></script>
+<script>
+  var programCode = function (processingInstance) {
+    with (processingInstance) {
+      size(800, 600);
+      frameRate(100);
+
+      //dificuldade define as regras do jogo e a quantidade mínima de asteroides de cada nivel
+      var dificuldade;
+      //numero de vidas;
+      var vida;
+      //controle de tempo
+      var tempoTotal;
+      var tempoNerfVel = 0;
+      var tempoColisao;
+      // contador de estrelas
+      var count = 0;
+
+      //controla batida
+      var bateu;
+
+      //velocidade reduzida
+      velocityNerf = new PVector(-1, -0.1);
+
+      //nave
+      var corNave = { r: 255, g: 0, b: 132 };
+      var tamNave = 40;
+      var naveXL = mouseX - tamNave/2;
+      var  naveXR = mouseX + tamNave/2;
+      var  naveYT = mouseY - tamNave/2;
+      var  naveYB = mouseY + tamNave/2;
+
+      //buff vida
+      var corVida = { r: 255, g: 0, b: 0 };
+      var tamVida = 15;
+      //nerf velocidade
+      var corVel = { r: 0, g: 0, b: 255 };
+      var tamVel = 20;
+      //asteroide
+      var corAsteroide = { r: 150, g: 75, b: 0 };
+      var tamAsteroide = 25;
+
+      //bounce
+      var corBounce = { r: 75, g: 150, b: 0 };
+      //ranking
+      var ranking = [0, 0, 0];
+
+      // controla a cena
+      var currentScene;
+
+      // contador de estrelas
+      var count = 0;
+
+      //contador de colisoes
+      var colisoes;
+      // funcao desenha estrela
+
+      //objetos
+      var asteroides = [];
+      var bounces = [];
+      var vidaUP = [];
+      var nerfVel = [];
+
+      var makeStars = function () {
+        fill(212, 239, 247);
+        ellipse(random(width), random(height), 5, 5);
+        count++;
+      };
+
+      /* Objeto Mover */
+
+      var Asteroide = function () {
+        //  this.position = new PVector(random(width), random(height));
+        this.position = new PVector(750, random(height));
+        this.velocity = new PVector(random(-5, -1), random(-2, -0.1));
+        // adicionando acelerando crescente mas constante ao objeto
+        //  this.acceleration = new PVector(-0.001,0.005);
+        this.acceleration = new PVector(-0.003, -0.0001);
+        // limite de velocidade
+        this.topspeed = 10;
+      };
+
+      Asteroide.prototype.update = function () {
+        if (tempoNerfVel <= 0) {
+          // adicionando a aceleração à velocidade que já temos
+          if (dificuldade != 1) {
+            this.velocity.add(this.acceleration);
+          }
+          // respeitar o limite de velocidae
+          this.velocity.limit(this.topspeed);
+          //
+          // agora move objeto
+          //  this.position.add(this.velocity);
+          this.position.add(this.velocity);
+        } else {
+          this.position.add(velocityNerf)
+        }
+      };
+
+      Asteroide.prototype.display = function () {
+        stroke(0);
+        strokeWeight(2);
+        fill(corAsteroide.r, corAsteroide.g, corAsteroide.b);
+        ellipse((this.position.x), (this.position.y), tamAsteroide, tamAsteroide);
+      };
+
+      Asteroide.prototype.checkEdges = function () {
+
+        if (this.position.x > width) {
+          this.position.x = 0;
+        }
+        else if (this.position.x < 0) {
+          this.position.x = width;
+          //this.position.y = random(1,200);
+          //println(this.position.y + " " + this.position.x);
+        }
+
+        if (this.position.y > height) {
+          this.position.y = 0;
+        }
+        else if (this.position.y < 0) {
+          this.position.y = height;
+        }
+      };
+
+      Asteroide.prototype.checkColisao = function () {
+        bateu = ((this.position.x + (tamAsteroide / 2) >= naveXL) && (naveXR >= this.position.x - (tamAsteroide / 2))) && ((this.position.y + (tamAsteroide / 2) >= naveYT) && (naveYB >= this.position.y - (tamAsteroide / 2)))
+      };
+
+      var Bounce = function () {
+        //  this.position = new PVector(random(width), random(height));
+        this.position = new PVector(750, random(tamAsteroide,height-tamAsteroide));
+        this.velocity = new PVector(random(-5, -1), random(-2, -0.1));
+        this.velocityNerf = new PVector(-1, -0.1);
+        // adicionando acelerando crescente mas constante ao objeto
+        //  this.acceleration = new PVector(-0.001,0.005);
+        this.acceleration = new PVector(-0.003, -0.0001);
+        // limite de velocidade
+        this.topspeed = 5;
+      };
+
+      Bounce.prototype.update = function () {
+        if (tempoNerfVel <= 0) {
+          // adicionando a aceleração à velocidade que já temos
+          if (dificuldade != 1) {
+            this.velocity.add(this.acceleration);
+          }
+          // respeitar o limite de velocidae
+          this.velocity.limit(this.topspeed);
+          //
+          // agora move objeto
+          //  this.position.add(this.velocity);
+          this.position.add(this.velocity);
+        } else {
+          this.position.add(this.velocityNerf)
+        }
+      };
+
+      Bounce.prototype.display = function () {
+        stroke(0);
+        strokeWeight(2);
+        fill(corBounce.r, corBounce.g, corBounce.b);
+        ellipse((this.position.x), (this.position.y), tamAsteroide, tamAsteroide);
+      };
+
+      Bounce.prototype.checkEdges = function () {
+        if (this.position.x + (tamAsteroide / 2) >= width || this.position.x - (tamAsteroide / 2) <= 0) {
+          this.velocity.x *= -1;
+          this.acceleration.x *= -1;
+          this.velocityNerf.x *=-1;
+        }
+        if (this.position.y + (tamAsteroide / 2) >= height || this.position.y - (tamAsteroide / 2) <= 0) {
+          this.velocity.y *= -1;
+          this.acceleration.y *= -1;
+          this.velocityNerf.y *=-1;
+        }
+      };
+
+      Bounce.prototype.checkColisao = function () {
+        bateu = ((this.position.x + (tamAsteroide / 2) >= naveXL) && (naveXR >= this.position.x - (tamAsteroide / 2))) && ((this.position.y + (tamAsteroide / 2) >= naveYT) && (naveYB >= this.position.y - (tamAsteroide / 2)))
+      };
+
+      var VidaUP = function () {
+        //  this.position = new PVector(random(width), random(height));
+        this.position = new PVector(750, random(height));
+        this.velocity = new PVector(random(-25, -1), random(-5, -1));
+        // adicionando acelerando crescente mas constante ao objeto
+        //  this.acceleration = new PVector(-0.001,0.005);
+        this.acceleration = new PVector(-0.003, -0.0001);
+        // limite de velocidade
+        this.topspeed = 15;
+      };
+
+      VidaUP.prototype.update = function () {
+        if (tempoNerfVel <= 0) {
+          // adicionando a aceleração à velocidade que já temos
+          this.velocity.add(this.acceleration);
+          // respeitar o limite de velocidae
+          this.velocity.limit(this.topspeed);
+          //
+          // agora move objeto
+          //  this.position.add(this.velocity);
+          this.position.add(this.velocity);
+        } else {
+          this.position.add(velocityNerf)
+        }
+      };
+
+      VidaUP.prototype.display = function () {
+        stroke(0);
+        strokeWeight(2);
+        fill(corVida.r, corVida.g, corVida.b);
+        ellipse((this.position.x), (this.position.y), tamVida, tamVida);
+      };
+
+      VidaUP.prototype.checkEdges = function () {
+
+        if (this.position.x > width) {
+          this.position.x = 0;
+        }
+        else if (this.position.x < 0) {
+          this.position.x = width;
+          //this.position.y = random(1,200);
+          //println(this.position.y + " " + this.position.x);
+        }
+
+        if (this.position.y > height) {
+          this.position.y = 0;
+        }
+        else if (this.position.y < 0) {
+          this.position.y = height;
+        }
+      };
+
+      VidaUP.prototype.checkColisao = function () {
+        bateu = ((this.position.x + (tamVida / 2) >= naveXL) && (naveXR >= this.position.x - (tamVida / 2))) && ((this.position.y + (tamVida / 2) >= naveYT) && (naveYB >= this.position.y - (tamVida / 2)))
+      };
+
+      var NerfVel = function () {
+        //  this.position = new PVector(random(width), random(height));
+        this.position = new PVector(750, random(height));
+        this.velocity = new PVector(random(-25, -1), random(-5, -1));
+        // adicionando acelerando crescente mas constante ao objeto
+        //  this.acceleration = new PVector(-0.001,0.005);
+        this.acceleration = new PVector(-0.003, -0.0001);
+        // limite de velocidade
+        this.topspeed = 10;
+      };
+
+      NerfVel.prototype.update = function () {
+        if (tempoNerfVel <= 0) {
+          // adicionando a aceleração à velocidade que já temos
+          this.velocity.add(this.acceleration);
+          // respeitar o limite de velocidae
+          this.velocity.limit(this.topspeed);
+          //
+          // agora move objeto
+          //  this.position.add(this.velocity);
+          this.position.add(this.velocity);
+        } else {
+          this.position.add(velocityNerf)
+        }
+      };
+
+      NerfVel.prototype.display = function () {
+        stroke(0);
+        strokeWeight(2);
+        fill(corVel.r, corVel.g, corVel.b);
+        ellipse((this.position.x), (this.position.y), tamVel, tamVel);
+      };
+
+      NerfVel.prototype.checkEdges = function () {
+
+        if (this.position.x > width) {
+          this.position.x = 0;
+        }
+        else if (this.position.x < 0) {
+          this.position.x = width;
+          //this.position.y = random(1,200);
+          //println(this.position.y + " " + this.position.x);
+        }
+
+        if (this.position.y > height) {
+          this.position.y = 0;
+        }
+        else if (this.position.y < 0) {
+          this.position.y = height;
+        }
+      };
+
+      NerfVel.prototype.checkColisao = function () {
+        bateu = ((this.position.x + (tamVel / 2) >= naveXL) && (naveXR >= this.position.x - (tamVel / 2))) && ((this.position.y + (tamVel / 2) >= naveYT) && (naveYB >= this.position.y - (tamVel / 2)))
+      };
+
+      // Scene 1
+      var drawScene1 = function () {
+        currentScene = 1;
+        background(0, 0, 0);
+        fill(255, 255, 255);
+        textSize(60);
+        text("A Space Adventure", width / 2 - 250, height / 2 - 100);
+        textSize(15);
+        text("Escolha uma dificuldade para começar", height - 50);
+
+        //botões
+        fill(7, 14, 45);
+        rect(130, height - 170, 150, 70);
+        rect(320, height - 170, 150, 70);
+        rect(510, height - 170, 150, 70);
+        fill(0, 255, 0);
+        textSize(30);
+        text("Fácil", 170, height - 123);
+        fill(0, 0, 255);
+        text("Médio", 350, height - 123);
+        fill(255, 0, 0);
+        text("Difícil", 550, height - 123);
+
+
+      };
+
+      // Scene 2
+      var drawScene2 = function () {
+        currentScene = 2;
+        background(7, 14, 45);
+        
+        //posições da nave
+        naveXL = mouseX - tamNave/2;
+        naveXR = mouseX + tamNave/2;
+        naveYT = mouseY - tamNave/2;
+        naveYB = mouseY + tamNave/2;
+
+        tempoTotal++;
+        tempoColisao--;
+        tempoNerfVel--;
+
+        //desenha nave
+        fill(corNave.r, corNave.g, corNave.b);
+        rect(naveXL, naveYT, tamNave, tamNave);
+        fill(255, 255, 255);
+        textSize(15);
+        text("Vidas: " + vida + " Tempo: " + tempoTotal + " Coliões: " + colisoes, 10, 25);
+
+        //minimo de asteroides/bounces
+        while (asteroides.length + bounces.length < dificuldade) {
+          var aux = 0;
+          if (dificuldade == 3) {
+            aux = random(0, 1);
+            aux = round(aux);
+          }
+          if (aux <= 0) {
+            asteroides.push(new Asteroide);
+          } else {
+            bounces.push(new Bounce);
+          }
+        }
+        //adiciona asteroide/bounces
+        if (tempoColisao <= 0) {
+          var aux = 0;
+          if (dificuldade == 3 && Bounce.length < 5) {
+            aux = random(0, 1);
+            aux = round(aux);
+          }
+          if (aux <= 0) {
+            asteroides.push(new Asteroide);
+          } else {
+            bounces.push(new Bounce);
+          }
+          tempoColisao = 1500;
+        }
+
+        //buff de vida
+        if (tempoTotal % 12000 == 0) {
+          vidaUP.push(new VidaUP);
+        }
+
+        //nerf de velocidade
+        if (tempoTotal % 3000 == 0) {
+          nerfVel.push(new NerfVel);
+        }
+
+
+        // crie ou chama uma função que desenhe e mova 1 objeto
+        for (var i = 0; i < vidaUP.length; i++) {
+          vidaUP[i].update();
+          vidaUP[i].checkEdges();
+          vidaUP[i].checkColisao();
+          if (bateu == true) {
+            vida++;
+            vidaUP.splice(i, 1);
+            i--;
+            bateu = false;
+          } else {
+            vidaUP[i].display();
+          }
+        }
+
+        for (var i = 0; i < nerfVel.length; i++) {
+          nerfVel[i].update();
+          nerfVel[i].checkEdges();
+          nerfVel[i].checkColisao();
+          if (bateu == true) {
+            tempoNerfVel = 500;
+            nerfVel.splice(i, 1);
+            i--;
+            bateu = false;
+          } else {
+            nerfVel[i].display();
+          }
+        }
+
+        for (var i = 0; i < asteroides.length; i++) {
+          asteroides[i].update();
+          asteroides[i].checkEdges();
+          asteroides[i].checkColisao();
+          if (bateu == true) {
+            vida--;
+            tempoColisao = 1500;
+            colisoes++;
+            asteroides.splice(i, 1);
+            i--;
+
+
+            bateu = false;
+          } else {
+            asteroides[i].display();
+          }
+        }
+
+        for (var i = 0; i < bounces.length; i++) {
+          bounces[i].update();
+          bounces[i].checkEdges();
+          bounces[i].checkColisao();
+          if (bateu == true) {
+            vida--;
+            tempoColisao = 1500;
+            colisoes++;
+            bounces.splice(i, 1);
+            i--;
+
+
+            bateu = false;
+          } else {
+            bounces[i].display();
+          }
+        }
+
+        if (vida <= 0) {
+          if (tempoTotal > ranking[0]) {
+            ranking[2] = ranking[1];
+            ranking[1] = ranking[0];
+            ranking[0] = tempoTotal;
+          } else if (tempoTotal > ranking[1]) {
+            ranking[2] = ranking[1];
+            ranking[1] = tempoTotal;
+          } else if (tempoTotal > ranking[0]) {
+            ranking[2] = tempoTotal;
+          }
+          drawScene3();
+        }
+      };
+
+      var drawScene3 = function () {
+        currentScene = 3;
+        while (asteroides.length != 0) {
+          asteroides.shift();
+        }
+        while (nerfVel.length != 0) {
+          nerfVel.shift();
+        }
+        while (vidaUP.length != 0) {
+          vidaUP.shift();
+        }
+        background(0, 0, 0);
+        fill(255, 255, 255);
+        textSize(39);
+        text("Game Over", width / 2 - 100, 120);
+        textSize(15);
+        text("Clique para jogar novamente", (width / 2) - 100, (height) - 100);
+        textSize(40);
+        text("RANKING ", width / 2 - 100, height / 2 - 40);
+        textSize(15);
+        text("1: " + ranking[0], width / 2 - 100, height / 2);
+        text("2: " + ranking[1], width / 2 - 100, height / 2 + 30);
+        text("3: " + ranking[2], width / 2 - 100, height / 2 + 60);
+
+      };
+
+      // clicou no mouse, avança cena
+      mouseClicked = function () {
+        if (currentScene === 1) {
+          if (mouseX >= 130 && mouseX <= 280 &&
+            mouseY >= height - 170 && mouseY <= height - 100) {
+            dificuldade = 1;
+            vida = 5;
+            colisoes = 0;
+            tempoColisao = 1500;
+            tempoTotal = 0;
+            bateu = false;
+            drawScene2();
+          }
+          if (mouseX >= 320 && mouseX <= 470 &&
+            mouseY >= height - 170 && mouseY <= height - 100) {
+            dificuldade = 2;
+            vida = 5;
+            colisoes = 0;
+            tempoColisao = 1500;
+            tempoTotal = 0;
+            bateu = false;
+            drawScene2();
+          }
+          if (mouseX >= 510 && mouseX <= 660 &&
+            mouseY >= height - 170 && mouseY <= height - 100) {
+            dificuldade = 3;
+            vida = 5;
+            colisoes = 0;
+            tempoColisao = 1500;
+            tempoTotal = 0;
+            bateu = false;
+            drawScene2();
+          }
+        }
+        if (currentScene === 3) {
+          drawScene1();
+        }
+      };
+
+      // funcao draw que desenha na tela.
+      draw = function () {
+        if (count < 300 && currentScene === 1) {
+          makeStars();
+        }
+        if (currentScene === 2) {
+          // chame a função para desenha a posição da nave no cenário
+          drawScene2();
+        }
+      };
+
+      // vamos começar pela Cena 1
+      drawScene1();
+
+
+    };
+  };
+  // Get the canvas that ProcessingJS will use
+  var canvas = document.getElementById("mycanvas");
+  // Pass the function to ProcessingJS constructor
+  var processingInstance = new Processing(canvas, programCode); 
+</script>
+
+</html>
